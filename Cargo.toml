@@ -1,0 +1,10 @@
+[package]
+name = "annepro2_tools"
+version = "0.1.0"
+authors = ["codetector <codetector@codetector.cn>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libusb = "^0.3.0"
