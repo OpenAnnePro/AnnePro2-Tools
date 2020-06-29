@@ -2,6 +2,7 @@ use rusb::{ConfigDescriptor, DeviceDescriptor, DeviceHandle, DeviceList, Endpoin
 use std::time::Duration;
 use std::intrinsics::transmute;
 use std::panic::resume_unwind;
+use pretty_hex::PrettyHex;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
@@ -159,10 +160,14 @@ pub fn erase_device<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2
     let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
     buffer.extend_from_slice(&addr_slice);
 
-    write_to_target(handle, ep, target, &buffer).map(|_| { () })
+    write_to_target(handle, ep, target, &buffer).map(|buf| {
+        use pretty_hex::*;
+        println!("dump\n{:#?}", buf[0..].as_ref().hex_dump());
+        ()
+    })
 }
 
-pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2Target, payload: &[u8]) -> Result<usize> {
+pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2Target, payload: &[u8]) -> Result<Vec<u8>> {
     let mut buffer: Vec<u8> = Vec::with_capacity(64);
     buffer.push(0x7b);
     buffer.push(0x10);
@@ -181,5 +186,8 @@ pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: 
         buffer.push(0);
     }
 
-    handle.write_interrupt(ep, &buffer, USB_TIMEOUT)
+    handle.write_interrupt(ep, &buffer, USB_TIMEOUT);
+    let mut buf = vec![0u8; 64];
+    let bytes = handle.read_interrupt(ep, &mut buf, USB_TIMEOUT)?;
+    Ok(buf)
 }

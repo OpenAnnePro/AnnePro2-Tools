@@ -4,6 +4,9 @@ use crate::annepro2::AP2Target;
 use std::path::PathBuf;
 use std::fs::File;
 
+#[macro_use]
+extern crate pretty_hex;
+
 pub mod annepro2;
 
 fn parse_hex_16(src: &str) -> std::result::Result<u16, ParseIntError> {
