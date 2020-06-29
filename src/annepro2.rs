@@ -186,8 +186,9 @@ pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: 
         buffer.push(0);
     }
 
-    handle.write_interrupt(ep, &buffer, USB_TIMEOUT);
+    handle.write_interrupt(ep, &buffer, USB_TIMEOUT)?;
     let mut buf = vec![0u8; 64];
     let bytes = handle.read_interrupt(ep, &mut buf, USB_TIMEOUT)?;
+    println!("read back {} bytes", bytes);
     Ok(buf)
 }
