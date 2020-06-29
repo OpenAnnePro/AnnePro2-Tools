@@ -160,11 +160,8 @@ pub fn erase_device<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2
     let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
     buffer.extend_from_slice(&addr_slice);
 
-    write_to_target(handle, ep, target, &buffer).map(|buf| {
-        use pretty_hex::*;
-        println!("dump\n{:#?}", buf[0..].as_ref().hex_dump());
-        ()
-    })
+    write_to_target(handle, ep, target, &buffer)?;
+    Ok(())
 }
 
 pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2Target, payload: &[u8]) -> Result<Vec<u8>> {
@@ -189,6 +186,6 @@ pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: 
     handle.write_interrupt(ep, &buffer, USB_TIMEOUT)?;
     let mut buf = vec![0u8; 64];
     let bytes = handle.read_interrupt((ep + 1) | 0x80, &mut buf, USB_TIMEOUT);
-    println!("read back {:?} bytes", bytes);
+    println!("read back {:?} bytes:\n{:#?}", bytes, buf[0..].as_ref().hex_dump());
     Ok(buf)
 }
