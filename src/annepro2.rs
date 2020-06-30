@@ -61,7 +61,10 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
             let mut handle = dev.open_device(&api).expect("unable to open device");
 
             // Flashing Code
-            erase_device(&handle, target, base).map_err(|_| { AP2FlashError::EraseError })?;
+            erase_device(&handle, target, base).map_err(|err| {
+                println!("Error while erasing: {}", err);
+                AP2FlashError::USBError
+            })?;
             flash_file(&handle, target, base, file);
 
             Ok(())
@@ -144,8 +147,13 @@ pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) ->
 
     buffer.insert(0, 0); // First word is report id.
 
-    handle.write(&buffer)
+    let lol = handle.write(&buffer);
 
+    if lol.is_err() {
+        let err = handle.check_error();
+        println!("err: {:?}", err);
+    }
+    lol
     // let mut buf = vec![0u8; 64];
     // let bytes = handle.read_interrupt((ep + 1) | 0x80, &mut buf, USB_TIMEOUT);
     // println!("read back {:?} bytes:\n{:#?}", bytes, buf[0..].as_ref().hex_dump());
