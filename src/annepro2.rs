@@ -1,8 +1,8 @@
-use rusb::{ConfigDescriptor, DeviceDescriptor, DeviceHandle, DeviceList, EndpointDescriptor, InterfaceDescriptor, Language, Result, Speed, UsbContext, Device, GlobalContext, Interface};
 use std::time::Duration;
 use std::intrinsics::transmute;
 use std::panic::resume_unwind;
 use pretty_hex::PrettyHex;
+use hidapi::{HidApi, DeviceInfo, HidDevice, HidResult};
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
@@ -52,70 +52,29 @@ pub enum AP2FlashError {
 const USB_TIMEOUT: Duration = Duration::from_secs(1);
 
 pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16) -> std::result::Result<(), AP2FlashError> {
-    let devices = DeviceList::new().map_err(|_| { AP2FlashError::OtherError })?;
+    match HidApi::new() {
+        Ok(api) => {
+            let dev = api.device_list().find(|dev| {
+                dev.vendor_id() == vid && dev.product_id() == pid
+            }).expect("No device found");
 
-    let mut filtered_devices: Vec<Device<GlobalContext>> = devices.iter()
-        .filter(|dev| {
-            if let Ok(desc) = dev.device_descriptor() {
-                return desc.vendor_id() == vid && desc.product_id() == pid;
-            }
-            return false;
-        }).collect();
+            let mut handle = dev.open_device(&api).expect("unable to open device");
 
-    println!("{} devices found.", filtered_devices.len());
-    if filtered_devices.is_empty() {
-        return Err(AP2FlashError::NoDeviceFound);
+            // Flashing Code
+            erase_device(&handle, target, base).map_err(|_| { AP2FlashError::EraseError })?;
+            flash_file(&handle, target, base, file);
+
+            Ok(())
+        },
+        Err(e) => {
+            println!("Error: {:?}", e);
+            Err(AP2FlashError::USBError)
+        }
     }
-    if filtered_devices.len() > 1 {
-        return Err(AP2FlashError::MultipleDeviceFound);
-    }
-    let dev = filtered_devices.pop().expect("has dev");
-    let dev_desc = dev.device_descriptor().expect("has desc");
-
-    println!("Found Anne Pro 2 In IAP Mode on Bus {:03} Port {:03} vid:pid {:04x}:{:04x}",
-             dev.bus_number(), dev.port_number(), dev_desc.vendor_id(), dev_desc.product_id());
-
-    println!("Device has {} configuration(s), using the first one", dev_desc.num_configurations());
-
-    let config_desc = dev.config_descriptor(0).expect("no config");
-
-    let mut dev_handle = dev.open().expect("can't open handle");
-    let lang = dev_handle.read_languages(USB_TIMEOUT).map_err(|_| { AP2FlashError::USBError })?[0];
-
-    let dev_name = dev_handle.read_product_string(lang, &dev_desc, USB_TIMEOUT)
-        .map_err(|_| { AP2FlashError::USBError })?;
-    let dev_serial = dev_handle.read_serial_number_string(lang, &dev_desc, USB_TIMEOUT)
-        .map_err(|_| { AP2FlashError::USBError })?;
-    println!("Device has name: \"{}\" Serial: {}", dev_name, dev_serial);
-    println!("has {} interfaces. We use second interface and EP 3/4", config_desc.num_interfaces());
-    if config_desc.num_interfaces() < 2 {
-        return Err(AP2FlashError::USBError);
-    }
-
-    let mut interfaces: Vec<Interface> = config_desc.interfaces().collect();
-    let interface = &mut interfaces[1];
-
-    let ifdesc = interface.descriptors().next().unwrap();
-    println!("Found {} eps on if#1", ifdesc.num_endpoints());
-    let mut epdesc: Vec<EndpointDescriptor> = ifdesc.endpoint_descriptors().collect();
-    println!("{:#?}", epdesc);
-
-    dev_handle.detach_kernel_driver(1);
-    dev_handle.claim_interface(1).expect("claim");
-
-    // Flashing Code
-    erase_device(&dev_handle, epdesc[0].address(), target, base).map_err(|_| { AP2FlashError::EraseError })?;
-    flash_file(&dev_handle, epdesc[0].address(), target, base, file);
-
-
-    dev_handle.release_interface(1).expect("claim");
-    dev_handle.attach_kernel_driver(1);
-
-    Ok(())
 }
 
-pub fn flash_file<T: UsbContext, F: std::io::Read>(handle: &DeviceHandle<T>, ep: u8,
-                                                   target: AP2Target, base: u32, file: &mut F) {
+pub fn flash_file<F: std::io::Read>(handle: &HidDevice, target: AP2Target, base: u32, file: &mut F)
+{
     let chunk_size = match &target {
         AP2Target::McuBle => 32usize,
         _ => 48usize,
@@ -126,7 +85,7 @@ pub fn flash_file<T: UsbContext, F: std::io::Read>(handle: &DeviceHandle<T>, ep:
         let size = file.read(&mut buffer).expect("read file failure");
 
         if size > 0 {
-            let result = write_chunk(handle, ep, target, current_addr, &buffer);
+            let result = write_chunk(handle, target, current_addr, &buffer);
             if result.is_err() {
                 println!("[WARNING] Error {:?} occurred during write at {:#08x}, continuing...",
                          result.unwrap_err(), current_addr);
@@ -143,28 +102,28 @@ pub fn flash_file<T: UsbContext, F: std::io::Read>(handle: &DeviceHandle<T>, ep:
     }
 }
 
-pub fn write_chunk<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2Target, addr: u32, chunk: &[u8]) -> Result<()> {
+pub fn write_chunk(handle: &HidDevice, target: AP2Target, addr: u32, chunk: &[u8]) -> HidResult<()> {
     let mut buffer: Vec<u8> = Vec::new();
     buffer.push(L2Command::FW as u8);
     buffer.push(KeyCommand::IapWirteMemory as u8);
     let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
     buffer.extend_from_slice(&addr_slice);
     buffer.extend_from_slice(chunk);
-    write_to_target(handle, ep, target, &buffer).map(|_| { () })
+    write_to_target(handle, target, &buffer).map(|_| { () })
 }
 
-pub fn erase_device<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2Target, addr: u32) -> Result<()> {
+pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResult<()> {
     let mut buffer: Vec<u8> = Vec::new();
     buffer.push(L2Command::FW as u8);
     buffer.push(KeyCommand::IapEraseMemory as u8);
     let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
     buffer.extend_from_slice(&addr_slice);
 
-    write_to_target(handle, ep, target, &buffer)?;
+    write_to_target(handle, target, &buffer)?;
     Ok(())
 }
 
-pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: AP2Target, payload: &[u8]) -> Result<Vec<u8>> {
+pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) -> HidResult<usize> {
     let mut buffer: Vec<u8> = Vec::with_capacity(64);
     buffer.push(0x7b);
     buffer.push(0x10);
@@ -183,9 +142,12 @@ pub fn write_to_target<T: UsbContext>(handle: &DeviceHandle<T>, ep: u8, target: 
         buffer.push(0);
     }
 
-    handle.write_interrupt(ep, &buffer, USB_TIMEOUT)?;
-    let mut buf = vec![0u8; 64];
-    let bytes = handle.read_interrupt((ep + 1) | 0x80, &mut buf, USB_TIMEOUT);
-    println!("read back {:?} bytes:\n{:#?}", bytes, buf[0..].as_ref().hex_dump());
-    Ok(buf)
+    buffer.insert(0, 0); // First word is report id.
+
+    handle.write(&buffer)
+
+    // let mut buf = vec![0u8; 64];
+    // let bytes = handle.read_interrupt((ep + 1) | 0x80, &mut buf, USB_TIMEOUT);
+    // println!("read back {:?} bytes:\n{:#?}", bytes, buf[0..].as_ref().hex_dump());
+    // Ok()
 }

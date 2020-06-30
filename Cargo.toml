@@ -8,5 +8,5 @@ edition = "2018"
 
 [dependencies]
 pretty-hex = "0.1.1"
-rusb = "0.6"
+hidapi = "1.2.3"
 structopt = "0.3"
