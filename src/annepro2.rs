@@ -3,6 +3,7 @@ use std::intrinsics::transmute;
 use std::panic::resume_unwind;
 use pretty_hex::PrettyHex;
 use hidapi::{HidApi, DeviceInfo, HidDevice, HidResult};
+use std::any::Any;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
@@ -55,10 +56,12 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
     match HidApi::new() {
         Ok(api) => {
             let dev = api.device_list().find(|dev| {
-                dev.vendor_id() == vid && dev.product_id() == pid
+                dev.vendor_id() == vid && dev.product_id() == pid && dev.interface_number() == 1
             }).expect("No device found");
 
             let mut handle = dev.open_device(&api).expect("unable to open device");
+            handle.set_blocking_mode(true);
+            println!("device is {:?}", handle.get_product_string());
 
             // Flashing Code
             erase_device(&handle, target, base).map_err(|err| {
@@ -127,6 +130,9 @@ pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResu
 }
 
 pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) -> HidResult<usize> {
+    let mut buf = vec![0u8; 64];
+    handle.read_timeout(&mut buf, 100);
+
     let mut buffer: Vec<u8> = Vec::with_capacity(64);
     buffer.push(0x7b);
     buffer.push(0x10);
@@ -154,7 +160,6 @@ pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) ->
         println!("err: {:?}", err);
     }
     lol
-    // let mut buf = vec![0u8; 64];
     // let bytes = handle.read_interrupt((ep + 1) | 0x80, &mut buf, USB_TIMEOUT);
     // println!("read back {:?} bytes:\n{:#?}", bytes, buf[0..].as_ref().hex_dump());
     // Ok()

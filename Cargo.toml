@@ -8,5 +8,5 @@ edition = "2018"
 
 [dependencies]
 pretty-hex = "0.1.1"
-hidapi = {version = "1.2.3", default-features = false, features = ["linux-shared-hidraw"]}
+hidapi = {version = "1.2.3", default-features = false, features = ["linux-static-libusb"]}
 structopt = "0.3"
