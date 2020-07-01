@@ -49,6 +49,10 @@ pub enum AP2FlashError {
 pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
+            for dev in api.device_list() {
+                println!("HID Dev: {:04x}:{:04x} if: {}", dev.vendor_id(), dev.product_id(), dev.interface_number());
+            }
+
             let dev = api.device_list().find(|dev| {
                 dev.vendor_id() == vid && dev.product_id() == pid && dev.interface_number() == 1
             }).expect("No device found");
