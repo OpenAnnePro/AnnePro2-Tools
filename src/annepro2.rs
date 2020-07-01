@@ -46,7 +46,7 @@ pub enum AP2FlashError {
     OtherError,
 }
 
-pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16) -> std::result::Result<(), AP2FlashError> {
+pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16, loosy: bool) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
             for dev in api.device_list() {
@@ -54,7 +54,7 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
             }
 
             let dev = api.device_list().find(|dev| {
-                dev.vendor_id() == vid && dev.product_id() == pid && dev.interface_number() == 1
+                dev.vendor_id() == vid && dev.product_id() == pid && (dev.interface_number() == 1 || loosy)
             }).expect("No device found. (If you have the c18 revision, you need to specify -p 8009)");
 
             let handle = dev.open_device(&api).expect("unable to open device");

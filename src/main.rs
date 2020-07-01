@@ -31,6 +31,8 @@ struct ArgOpts {
     pid: u16,
     #[structopt(long, parse(try_from_str = parse_hex), default_value = "0x4000")]
     base: u32,
+    #[structopt(long="loosy")]
+    loosy: bool,
     #[structopt(short="t", long, default_value="main")]
     target: String,
     /// File to be flashed onto device
@@ -52,7 +54,7 @@ fn main() {
     } else {
         panic!("Invalid target, choose from main, led, and ble");
     }
-    let result = annepro2::flash_firmware(target, args.base, &mut file, args.vid, args.pid);
+    let result = annepro2::flash_firmware(target, args.base, &mut file, args.vid, args.pid, args.loosy);
     if result.is_ok() {
         println!("Flash complete");
     } else {
