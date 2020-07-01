@@ -1,9 +1,5 @@
-use std::time::Duration;
 use std::intrinsics::transmute;
-use std::panic::resume_unwind;
-use pretty_hex::PrettyHex;
-use hidapi::{HidApi, DeviceInfo, HidDevice, HidResult};
-use std::any::Any;
+use hidapi::{HidApi, HidDevice, HidResult};
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
@@ -50,8 +46,6 @@ pub enum AP2FlashError {
     OtherError,
 }
 
-const USB_TIMEOUT: Duration = Duration::from_secs(1);
-
 pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
@@ -59,9 +53,9 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
                 dev.vendor_id() == vid && dev.product_id() == pid && dev.interface_number() == 1
             }).expect("No device found");
 
-            let mut handle = dev.open_device(&api).expect("unable to open device");
-            handle.set_blocking_mode(true);
-            println!("device is {:?}", handle.get_product_string());
+            let handle = dev.open_device(&api).expect("unable to open device");
+            handle.set_blocking_mode(true).expect("non-blocking");
+            println!("device is {:?}", handle.get_product_string().expect("string"));
 
             // Flashing Code
             erase_device(&handle, target, base).map_err(|err| {
@@ -69,7 +63,10 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
                 AP2FlashError::USBError
             })?;
             flash_file(&handle, target, base, file);
-
+            write_ap_flag(&handle, 2).map_err(|e|{
+                println!("Error while writing AP flag: {:?}", e);
+                AP2FlashError::USBError
+            })?;
             Ok(())
         },
         Err(e) => {
@@ -77,6 +74,15 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
             Err(AP2FlashError::USBError)
         }
     }
+}
+
+pub fn write_ap_flag(handle: &HidDevice, flag: u8) -> HidResult<()>{
+    let mut buffer: Vec<u8> = Vec::new();
+    buffer.push(L2Command::FW as u8);
+    buffer.push(KeyCommand::IapWriteApFlag as u8);
+    buffer.push(flag);
+    write_to_target(handle, AP2Target::McuMain, &buffer)?;
+    Ok(())
 }
 
 pub fn flash_file<F: std::io::Read>(handle: &HidDevice, target: AP2Target, base: u32, file: &mut F)
@@ -130,9 +136,6 @@ pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResu
 }
 
 pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) -> HidResult<usize> {
-    let mut buf = vec![0u8; 64];
-    handle.read_timeout(&mut buf, 100);
-
     let mut buffer: Vec<u8> = Vec::with_capacity(64);
     buffer.push(0x7b);
     buffer.push(0x10);

@@ -4,9 +4,6 @@ use crate::annepro2::AP2Target;
 use std::path::PathBuf;
 use std::fs::File;
 
-#[macro_use]
-extern crate pretty_hex;
-
 pub mod annepro2;
 
 fn parse_hex_16(src: &str) -> std::result::Result<u16, ParseIntError> {
@@ -34,6 +31,8 @@ struct ArgOpts {
     pid: u16,
     #[structopt(long, parse(try_from_str = parse_hex), default_value = "0x4000")]
     base: u32,
+    #[structopt(short="t", long, default_value="main")]
+    target: String,
     /// File to be flashed onto device
     #[structopt(name = "file", parse(from_os_str))]
     file: PathBuf,
@@ -43,7 +42,17 @@ fn main() {
     let args: ArgOpts = ArgOpts::from_args();
     println!("args: {:#x?}", args);
     let mut file = File::open(args.file).expect("invalid file");
-    let result = annepro2::flash_firmware(AP2Target::McuMain, args.base, &mut file, args.vid, args.pid);
+    let target;
+    if args.target.eq_ignore_ascii_case("ble") {
+        target = AP2Target::McuBle;
+    } else if args.target.eq_ignore_ascii_case("main") {
+        target = AP2Target::McuMain;
+    } else if args.target.eq_ignore_ascii_case("led") {
+        target = AP2Target::McuLed;
+    } else {
+        panic!("Invalid target, choose from main, led, and ble");
+    }
+    let result = annepro2::flash_firmware(target, args.base, &mut file, args.vid, args.pid);
     if result.is_ok() {
         println!("Flash complete");
     } else {
