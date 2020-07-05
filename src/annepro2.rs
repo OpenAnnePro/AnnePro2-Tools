@@ -1,5 +1,6 @@
 use std::intrinsics::transmute;
 use hidapi::{HidApi, HidDevice, HidResult};
+use pretty_hex::PrettyHex;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
@@ -166,8 +167,11 @@ pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) ->
         let err = handle.check_error();
         println!("err: {:?}", err);
     }
+
+    let mut buf :Vec<u8> = vec![0u8; 64];
+    handle.read(&mut buf);
+    use pretty_hex::*;
+    println!("read back: {:#?}", buf[0..].as_ref().hex_dump());
+
     lol
-    // let bytes = handle.read_interrupt((ep + 1) | 0x80, &mut buf, USB_TIMEOUT);
-    // println!("read back {:?} bytes:\n{:#?}", bytes, buf[0..].as_ref().hex_dump());
-    // Ok()
 }

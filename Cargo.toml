@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 hidapi = {version = "1.2.3", default-features = false, features = ["linux-static-libusb"]}
+pretty-hex = "0.1.1"
 structopt = "0.3"
