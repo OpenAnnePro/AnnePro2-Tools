@@ -47,7 +47,7 @@ pub enum AP2FlashError {
     OtherError,
 }
 
-pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16, loosy: bool) -> std::result::Result<(), AP2FlashError> {
+pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16, loosy: bool, boot: bool) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
             for dev in api.device_list() {
@@ -72,6 +72,12 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
                 println!("Error while writing AP flag: {:?}", e);
                 AP2FlashError::USBError
             })?;
+            if boot {
+                boot_device(&handle).map_err(|e|{
+                    println!("Error while booting device: {:?}", e);
+                    AP2FlashError::USBError
+                })?;
+            }
             Ok(())
         },
         Err(e) => {
@@ -137,6 +143,20 @@ pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResu
     buffer.extend_from_slice(&addr_slice);
 
     write_to_target(handle, target, &buffer)?;
+    Ok(())
+}
+
+pub fn boot_device(handle: &HidDevice) -> HidResult<()> {
+    let buffer: Vec<u8> = vec![0x00, 0x7b, 0x10, 0x31, 0x10, 0x03, 0x00, 0x00, 0x7d, 0x02, 0x01, 0x02];
+
+    // directly use write because we shouldn't pad this command to 64 bytes
+    let lol = handle.write(&buffer);
+
+    if lol.is_err() {
+        let err = handle.check_error();
+        println!("err: {:?}", err);
+    }
+
     Ok(())
 }
 
