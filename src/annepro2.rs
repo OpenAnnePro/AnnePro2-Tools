@@ -1,6 +1,9 @@
 use std::intrinsics::transmute;
 use hidapi::{HidApi, HidDevice, HidResult};
-use pretty_hex::PrettyHex;
+
+const ANNEPRO2_VID: u16 = 0x04d9;
+const PID_C15: u16 = 0x8008;
+const PID_C18: u16 = 0x8009;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
@@ -47,15 +50,15 @@ pub enum AP2FlashError {
     OtherError,
 }
 
-pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, vid: u16, pid: u16, loosy: bool, boot: bool) -> std::result::Result<(), AP2FlashError> {
+pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, interface: i32, boot: bool) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
             for dev in api.device_list() {
-                println!("HID Dev: {:04x}:{:04x} if: {}", dev.vendor_id(), dev.product_id(), dev.interface_number());
+                println!("HID Dev: {:04x}:{:04x} if: {} {:?}", dev.vendor_id(), dev.product_id(), dev.interface_number(), dev.product_string());
             }
-
             let dev = api.device_list().find(|dev| {
-                dev.vendor_id() == vid && dev.product_id() == pid && (dev.interface_number() == 1 || loosy)
+                dev.vendor_id() == ANNEPRO2_VID &&
+                    ((dev.product_id() == PID_C15 && dev.interface_number() == 1) || (dev.product_id() == PID_C18 && dev.interface_number() == interface))
             }).expect("No device found. (If you have the c18 revision, you need to specify -p 8009)");
 
             let handle = dev.open_device(&api).expect("unable to open device");
@@ -68,18 +71,18 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
                 AP2FlashError::USBError
             })?;
             flash_file(&handle, target, base, file);
-            write_ap_flag(&handle, 2).map_err(|e|{
+            write_ap_flag(&handle, 2).map_err(|e| {
                 println!("Error while writing AP flag: {:?}", e);
                 AP2FlashError::USBError
             })?;
             if boot {
-                boot_device(&handle).map_err(|e|{
+                boot_device(&handle).map_err(|e| {
                     println!("Error while booting device: {:?}", e);
                     AP2FlashError::USBError
                 })?;
             }
             Ok(())
-        },
+        }
         Err(e) => {
             println!("Error: {:?}", e);
             Err(AP2FlashError::USBError)
@@ -87,7 +90,7 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
     }
 }
 
-pub fn write_ap_flag(handle: &HidDevice, flag: u8) -> HidResult<()>{
+pub fn write_ap_flag(handle: &HidDevice, flag: u8) -> HidResult<()> {
     let mut buffer: Vec<u8> = Vec::new();
     buffer.push(L2Command::FW as u8);
     buffer.push(KeyCommand::IapWriteApFlag as u8);
@@ -188,7 +191,7 @@ pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) ->
         println!("err: {:?}", err);
     }
 
-    let mut buf :Vec<u8> = vec![0u8; 64];
+    let mut buf: Vec<u8> = vec![0u8; 64];
     handle.read(&mut buf);
     use pretty_hex::*;
     println!("read back: {:#?}", buf[0..].as_ref().hex_dump());
