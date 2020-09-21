@@ -4,9 +4,6 @@ use crate::annepro2::AP2Target;
 use std::path::PathBuf;
 use std::fs::File;
 
-#[macro_use]
-extern crate pretty_hex;
-
 pub mod annepro2;
 
 fn parse_hex_16(src: &str) -> std::result::Result<u16, ParseIntError> {
@@ -28,14 +25,10 @@ fn parse_hex(src: &str) -> std::result::Result<u32, ParseIntError> {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "annepro2_tools")]
 struct ArgOpts {
-    #[structopt(short="v", long="vid", parse(try_from_str = parse_hex_16), default_value = "04d9")]
-    vid: u16,
-    #[structopt(short="p", long="pid", parse(try_from_str = parse_hex_16), default_value = "8008")]
-    pid: u16,
+    #[structopt(short="i", long="interface", default_value = "0")]
+    interface: i32,
     #[structopt(long, parse(try_from_str = parse_hex), default_value = "0x4000")]
     base: u32,
-    #[structopt(long="loosy")]
-    loosy: bool,
     #[structopt(long="boot")]
     boot: bool,
     #[structopt(short="t", long, default_value="main")]
@@ -59,7 +52,7 @@ fn main() {
     } else {
         panic!("Invalid target, choose from main, led, and ble");
     }
-    let result = annepro2::flash_firmware(target, args.base, &mut file, args.vid, args.pid, args.loosy, args.boot);
+    let result = annepro2::flash_firmware(target, args.base, &mut file, args.interface,  args.boot);
     if result.is_ok() {
         println!("Flash complete");
         if args.boot {
