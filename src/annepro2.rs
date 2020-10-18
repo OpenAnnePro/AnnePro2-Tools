@@ -59,7 +59,7 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
             let dev = api.device_list().find(|dev| {
                 dev.vendor_id() == ANNEPRO2_VID &&
                     ((dev.product_id() == PID_C15 && dev.interface_number() == 1) || (dev.product_id() == PID_C18 && dev.interface_number() == interface))
-            }).expect("No device found. (If you have the c18 revision, you need to specify -p 8009)");
+            }).expect("No device found. (If you have the c18 revision, you must specify the correct interface number using -i=<number>)");
 
             let handle = dev.open_device(&api).expect("unable to open device");
             handle.set_blocking_mode(true).expect("non-blocking");
