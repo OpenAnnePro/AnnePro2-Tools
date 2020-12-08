@@ -43,7 +43,7 @@ pipeline {
                         checkout scm
                         bat '''cargo clean'''
                         bat '''cargo build --release'''
-                        bat '''ren target\\release\\annepro2_tools.exe target\\release\\annepro2_tools_x64.exe'''
+                        bat '''ren target\\release\\annepro2_tools.exe annepro2_tools_x64.exe'''
                     }
 
                     post {
@@ -62,12 +62,12 @@ pipeline {
                         checkout scm
                         bat '''cargo clean'''
                         bat '''cargo build --release --target=i686-pc-windows-msvc'''
-                        bat '''ren target\\i686-pc-windows-msvc\\release\\annepro2_tools.exe target\\i686-pc-windows-msvc\\release\\annepro2_tools_i386.exe'''
+                        bat '''ren target\\i686-pc-windows-msvc\\release\\annepro2_tools.exe annepro2_tools_x86.exe'''
                     }
 
                     post {
                         always {
-                            archiveArtifacts artifacts: 'target/i686-pc-windows-msvc/release/annepro2_tools_i386.exe', caseSensitive: false, fingerprint: true, followSymlinks: false, onlyIfSuccessful: true
+                            archiveArtifacts artifacts: 'target/i686-pc-windows-msvc/release/annepro2_tools_x86.exe', caseSensitive: false, fingerprint: true, followSymlinks: false, onlyIfSuccessful: true
                         }
                     }
                 }
