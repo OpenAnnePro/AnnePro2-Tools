@@ -50,7 +50,7 @@ pub enum AP2FlashError {
     OtherError,
 }
 
-pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, interface: i32, boot: bool) -> std::result::Result<(), AP2FlashError> {
+pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, boot: bool) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
             for dev in api.device_list() {
@@ -58,8 +58,9 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
             }
             let dev = api.device_list().find(|dev| {
                 dev.vendor_id() == ANNEPRO2_VID &&
-                    ((dev.product_id() == PID_C15 && dev.interface_number() == 1) || (dev.product_id() == PID_C18 && dev.interface_number() == interface))
-            }).expect("No device found. (If you have the c18 revision, you must specify the correct interface number using -i=<number>)");
+                    ((dev.product_id() == PID_C15 && dev.interface_number() == 1) ||
+                     (dev.product_id() == PID_C18 && dev.interface_number() == -1))
+            }).expect("No device found. Please remind to put the device into IAP Mode");
 
             let handle = dev.open_device(&api).expect("unable to open device");
             handle.set_blocking_mode(true).expect("non-blocking");
