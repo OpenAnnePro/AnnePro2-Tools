@@ -25,8 +25,6 @@ fn parse_hex(src: &str) -> std::result::Result<u32, ParseIntError> {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "annepro2_tools")]
 struct ArgOpts {
-    #[structopt(short="i", long="interface", default_value = "0")]
-    interface: i32,
     #[structopt(long, parse(try_from_str = parse_hex), default_value = "0x4000")]
     base: u32,
     #[structopt(long="boot")]
@@ -52,7 +50,7 @@ fn main() {
     } else {
         panic!("Invalid target, choose from main, led, and ble");
     }
-    let result = annepro2::flash_firmware(target, args.base, &mut file, args.interface,  args.boot);
+    let result = annepro2::flash_firmware(target, args.base, &mut file, args.boot);
     if result.is_ok() {
         println!("Flash complete");
         if args.boot {
