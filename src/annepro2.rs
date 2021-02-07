@@ -9,9 +9,6 @@ const PID_C18: u16 = 0x8009;
 const USAGE_C15: u16 = 0x0;
 const USAGE_C18: u16 = 0x0;
 
-const USAGE_PAGE_C15: u16 = 0x1;
-const USAGE_PAGE_C18: u16 = 0x1;
-
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
 pub enum AP2Target {
@@ -66,8 +63,8 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
             }
             let dev = api.device_list().find(|dev| {
                 dev.vendor_id() == ANNEPRO2_VID &&
-                    ((dev.usage() == USAGE_C15 && dev.usage_page() == USAGE_PAGE_C15 && dev.product_id() == PID_C15) ||
-                     (dev.usage() == USAGE_C18 && dev.usage_page() == USAGE_PAGE_C18 && dev.product_id() == PID_C18))
+                    ((dev.usage() == USAGE_C15 && dev.product_id() == PID_C15 && dev.interface_number() == 1) ||
+                     (dev.usage() == USAGE_C18 && dev.product_id() == PID_C18))
             }).expect("No device found. Please remind to put the device into IAP Mode");
 
             let handle = dev.open_device(&api).expect("unable to open device");
