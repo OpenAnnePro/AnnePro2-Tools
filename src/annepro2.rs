@@ -195,7 +195,10 @@ pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) ->
     }
 
     let mut buf: Vec<u8> = vec![0u8; 64];
-    handle.read(&mut buf);
+    if let Err(err) = handle.read(&mut buf) {
+        println!("err: {:?}", err);
+    };
+
     use pretty_hex::*;
     println!("read back: {:#?}", buf[0..].as_ref().hex_dump());
 
