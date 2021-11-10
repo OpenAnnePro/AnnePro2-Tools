@@ -1,5 +1,5 @@
-use std::intrinsics::transmute;
 use hidapi::{HidApi, HidDevice, HidResult};
+use std::intrinsics::transmute;
 
 const ANNEPRO2_VID: u16 = 0x04d9;
 
@@ -51,22 +51,39 @@ pub enum AP2FlashError {
     OtherError,
 }
 
-pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut R, boot: bool) -> std::result::Result<(), AP2FlashError> {
+pub fn flash_firmware<R: std::io::Read>(
+    target: AP2Target,
+    base: u32,
+    file: &mut R,
+    boot: bool,
+) -> std::result::Result<(), AP2FlashError> {
     match HidApi::new() {
         Ok(api) => {
             for dev in api.device_list() {
-                println!("HID Dev: {:04x}:{:04x} usage #: {:02x} usage_page #: {:04x} {:?}", dev.vendor_id(), dev.product_id(),
-                dev.usage(), dev.usage_page(), dev.product_string());
+                println!(
+                    "HID Dev: {:04x}:{:04x} usage #: {:02x} usage_page #: {:04x} {:?}",
+                    dev.vendor_id(),
+                    dev.product_id(),
+                    dev.usage(),
+                    dev.usage_page(),
+                    dev.product_string()
+                );
             }
-            let dev = api.device_list().find(|dev| {
-                dev.vendor_id() == ANNEPRO2_VID &&
-                    ((dev.product_id() == PID_C15 && dev.interface_number() == 1) ||
-                     (dev.product_id() == PID_C18))
-            }).expect("No device found. Please remind to put the device into IAP Mode");
+            let dev = api
+                .device_list()
+                .find(|dev| {
+                    dev.vendor_id() == ANNEPRO2_VID
+                        && ((dev.product_id() == PID_C15 && dev.interface_number() == 1)
+                            || (dev.product_id() == PID_C18))
+                })
+                .expect("No device found. Please remind to put the device into IAP Mode");
 
             let handle = dev.open_device(&api).expect("unable to open device");
             handle.set_blocking_mode(true).expect("non-blocking");
-            println!("device is {:?}", handle.get_product_string().expect("string"));
+            println!(
+                "device is {:?}",
+                handle.get_product_string().expect("string")
+            );
 
             // Flashing Code
             erase_device(&handle, target, base).map_err(|err| {
@@ -94,16 +111,17 @@ pub fn flash_firmware<R: std::io::Read>(target: AP2Target, base: u32, file: &mut
 }
 
 pub fn write_ap_flag(handle: &HidDevice, flag: u8) -> HidResult<()> {
-    let mut buffer: Vec<u8> = Vec::new();
-    buffer.push(L2Command::FW as u8);
-    buffer.push(KeyCommand::IapWriteApFlag as u8);
-    buffer.push(flag);
+    let buffer: Vec<u8> = vec![L2Command::FW as u8, KeyCommand::IapWriteApFlag as u8, flag];
     write_to_target(handle, AP2Target::McuMain, &buffer)?;
     Ok(())
 }
 
-pub fn flash_file<F: std::io::Read>(handle: &HidDevice, target: AP2Target, base: u32, file: &mut F)
-{
+pub fn flash_file<F: std::io::Read>(
+    handle: &HidDevice,
+    target: AP2Target,
+    base: u32,
+    file: &mut F,
+) {
     let chunk_size = match &target {
         AP2Target::McuBle => 32usize,
         _ => 48usize,
@@ -116,11 +134,18 @@ pub fn flash_file<F: std::io::Read>(handle: &HidDevice, target: AP2Target, base:
         if size > 0 {
             let result = write_chunk(handle, target, current_addr, &buffer);
             if result.is_err() {
-                println!("[WARNING] Error {:?} occurred during write at {:#08x}, continuing...",
-                         result.unwrap_err(), current_addr);
+                println!(
+                    "[WARNING] Error {:?} occurred during write at {:#08x}, continuing...",
+                    result.unwrap_err(),
+                    current_addr
+                );
             } else {
-                println!("[INFO] Wrote {} bytes, at {:#08x}, total: {} bytes written",
-                         size, current_addr, (current_addr + size as u32) - base);
+                println!(
+                    "[INFO] Wrote {} bytes, at {:#08x}, total: {} bytes written",
+                    size,
+                    current_addr,
+                    (current_addr + size as u32) - base
+                );
             }
             current_addr += size as u32;
         }
@@ -131,20 +156,21 @@ pub fn flash_file<F: std::io::Read>(handle: &HidDevice, target: AP2Target, base:
     }
 }
 
-pub fn write_chunk(handle: &HidDevice, target: AP2Target, addr: u32, chunk: &[u8]) -> HidResult<()> {
-    let mut buffer: Vec<u8> = Vec::new();
-    buffer.push(L2Command::FW as u8);
-    buffer.push(KeyCommand::IapWirteMemory as u8);
+pub fn write_chunk(
+    handle: &HidDevice,
+    target: AP2Target,
+    addr: u32,
+    chunk: &[u8],
+) -> HidResult<()> {
+    let mut buffer: Vec<u8> = vec![L2Command::FW as u8, KeyCommand::IapWirteMemory as u8];
     let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
     buffer.extend_from_slice(&addr_slice);
     buffer.extend_from_slice(chunk);
-    write_to_target(handle, target, &buffer).map(|_| { () })
+    write_to_target(handle, target, &buffer).map(|_| ())
 }
 
 pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResult<()> {
-    let mut buffer: Vec<u8> = Vec::new();
-    buffer.push(L2Command::FW as u8);
-    buffer.push(KeyCommand::IapEraseMemory as u8);
+    let mut buffer: Vec<u8> = vec![L2Command::FW as u8, KeyCommand::IapEraseMemory as u8];
     let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
     buffer.extend_from_slice(&addr_slice);
 
@@ -153,7 +179,9 @@ pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResu
 }
 
 pub fn boot_device(handle: &HidDevice) -> HidResult<()> {
-    let buffer: Vec<u8> = vec![0x00, 0x7b, 0x10, 0x31, 0x10, 0x03, 0x00, 0x00, 0x7d, 0x02, 0x01, 0x02];
+    let buffer: Vec<u8> = vec![
+        0x00, 0x7b, 0x10, 0x31, 0x10, 0x03, 0x00, 0x00, 0x7d, 0x02, 0x01, 0x02,
+    ];
 
     // directly use write because we shouldn't pad this command to 64 bytes
     let lol = handle.write(&buffer);
