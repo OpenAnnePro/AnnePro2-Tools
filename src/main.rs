@@ -1,22 +1,22 @@
-use structopt::StructOpt;
-use std::num::ParseIntError;
 use crate::annepro2::AP2Target;
-use std::path::PathBuf;
 use std::fs::File;
+use std::num::ParseIntError;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 pub mod annepro2;
 
 fn parse_hex_16(src: &str) -> std::result::Result<u16, ParseIntError> {
-    if src.starts_with("0x") {
-        u16::from_str_radix(&src[2..], 16)
+    if let Some(num) = src.strip_prefix("0x") {
+        u16::from_str_radix(num, 16)
     } else {
         u16::from_str_radix(src, 16)
     }
 }
 
 fn parse_hex(src: &str) -> std::result::Result<u32, ParseIntError> {
-    if src.starts_with("0x") {
-        u32::from_str_radix(&src[2..], 16)
+    if let Some(num) = src.strip_prefix("0x") {
+        u32::from_str_radix(num, 16)
     } else {
         u32::from_str_radix(src, 16)
     }
@@ -27,9 +27,9 @@ fn parse_hex(src: &str) -> std::result::Result<u32, ParseIntError> {
 struct ArgOpts {
     #[structopt(long, parse(try_from_str = parse_hex), default_value = "0x4000")]
     base: u32,
-    #[structopt(long="boot")]
+    #[structopt(long = "boot")]
     boot: bool,
-    #[structopt(short="t", long, default_value="main")]
+    #[structopt(short = "t", long, default_value = "main")]
     target: String,
     /// File to be flashed onto device
     #[structopt(name = "file", parse(from_os_str))]
