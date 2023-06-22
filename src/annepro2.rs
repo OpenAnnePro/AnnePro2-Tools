@@ -1,9 +1,5 @@
 use hidapi::{HidApi, HidDevice, HidResult};
-use std::{
-    intrinsics::transmute,
-    thread,
-    time::Duration,
-};
+use std::{intrinsics::transmute, thread, time::Duration};
 
 const ANNEPRO2_VID: u16 = 0x04d9;
 
@@ -126,9 +122,8 @@ fn fetch_devices(api: &HidApi) -> (Vec<&hidapi::DeviceInfo>, Option<&hidapi::Dev
         .collect::<Vec<_>>();
 
     let flash_device = anne_devices.iter().find(|dev| {
-        dev.vendor_id() == ANNEPRO2_VID
-            && ((dev.product_id() == PID_C15 && dev.interface_number() == 1)
-                || (dev.product_id() == PID_C18))
+        (dev.product_id() == PID_C15 && dev.interface_number() == 1)
+            || (dev.product_id() == PID_C18)
     });
     (anne_devices.clone(), flash_device.cloned())
 }
