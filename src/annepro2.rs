@@ -1,5 +1,9 @@
 use hidapi::{HidApi, HidDevice, HidResult};
-use std::intrinsics::transmute;
+use std::{
+    intrinsics::transmute,
+    thread,
+    time::Duration,
+};
 
 const ANNEPRO2_VID: u16 = 0x04d9;
 
@@ -57,57 +61,76 @@ pub fn flash_firmware<R: std::io::Read>(
     file: &mut R,
     boot: bool,
 ) -> std::result::Result<(), AP2FlashError> {
-    match HidApi::new() {
-        Ok(api) => {
-            for dev in api.device_list() {
-                println!(
-                    "HID Dev: {:04x}:{:04x} usage #: {:02x} usage_page #: {:04x} {:?}",
-                    dev.vendor_id(),
-                    dev.product_id(),
-                    dev.usage(),
-                    dev.usage_page(),
-                    dev.product_string()
-                );
-            }
-            let dev = api
-                .device_list()
-                .find(|dev| {
-                    dev.vendor_id() == ANNEPRO2_VID
-                        && ((dev.product_id() == PID_C15 && dev.interface_number() == 1)
-                            || (dev.product_id() == PID_C18))
-                })
-                .expect("No device found. Please remind to put the device into IAP Mode");
+    let api = HidApi::new().map_err(|_| AP2FlashError::USBError)?;
 
-            let handle = dev.open_device(&api).expect("unable to open device");
-            handle.set_blocking_mode(true).expect("non-blocking");
-            println!(
-                "device is {:?}",
-                handle.get_product_string().expect("string")
-            );
+    let (anne_devices, flash_device) = fetch_devices(&api);
 
-            // Flashing Code
-            erase_device(&handle, target, base).map_err(|err| {
-                println!("Error while erasing: {}", err);
-                AP2FlashError::USBError
-            })?;
-            flash_file(&handle, target, base, file);
-            write_ap_flag(&handle, 2).map_err(|e| {
-                println!("Error while writing AP flag: {:?}", e);
-                AP2FlashError::USBError
-            })?;
-            if boot {
-                boot_device(&handle).map_err(|e| {
-                    println!("Error while booting device: {:?}", e);
-                    AP2FlashError::USBError
-                })?;
-            }
-            Ok(())
-        }
-        Err(e) => {
-            println!("Error: {:?}", e);
-            Err(AP2FlashError::USBError)
+    if !anne_devices.is_empty() && flash_device.is_none() {
+        println!("Please put your keyboard into IAP mode by disconnecting it and reconnecting it while holding the ESC key.");
+
+        let mut i = 10;
+        while i > 0 {
+            println!("Attempt in {} seconds.", i);
+            thread::sleep(Duration::from_secs(1));
+            i -= 1;
         }
     }
+
+    let (_, flash_device) = fetch_devices(&api);
+
+    let dev = flash_device.expect("No device found.");
+
+    let handle = api.open_path(dev.path()).expect("unable to open device");
+    handle.set_blocking_mode(true).expect("non-blocking");
+    println!(
+        "device is {:?}",
+        handle.get_product_string().expect("string")
+    );
+
+    // Flashing Code
+    erase_device(&handle, target, base).map_err(|err| {
+        println!("Error while erasing: {}", err);
+        AP2FlashError::USBError
+    })?;
+    flash_file(&handle, target, base, file);
+    write_ap_flag(&handle, 2).map_err(|e| {
+        println!("Error while writing AP flag: {:?}", e);
+        AP2FlashError::USBError
+    })?;
+    if boot {
+        boot_device(&handle).map_err(|e| {
+            println!("Error while booting device: {:?}", e);
+            AP2FlashError::USBError
+        })?;
+    }
+    Ok(())
+}
+
+fn fetch_devices(api: &HidApi) -> (Vec<&hidapi::DeviceInfo>, Option<&hidapi::DeviceInfo>) {
+    for dev in api.device_list() {
+        println!(
+            "HID Dev: {:04x}:{:04x} usage #: {:02x} usage_page #: {:04x} {}",
+            dev.vendor_id(),
+            dev.product_id(),
+            dev.usage(),
+            dev.usage_page(),
+            dev.product_string()
+                .map(|it| format!("({:})", it.replace("\n", " - ")))
+                .unwrap_or_default()
+        );
+    }
+
+    let anne_devices = api
+        .device_list()
+        .filter(|dev| dev.vendor_id() == ANNEPRO2_VID)
+        .collect::<Vec<_>>();
+
+    let flash_device = anne_devices.iter().find(|dev| {
+        dev.vendor_id() == ANNEPRO2_VID
+            && ((dev.product_id() == PID_C15 && dev.interface_number() == 1)
+                || (dev.product_id() == PID_C18))
+    });
+    (anne_devices.clone(), flash_device.cloned())
 }
 
 pub fn write_ap_flag(handle: &HidDevice, flag: u8) -> HidResult<()> {
@@ -187,8 +210,7 @@ pub fn boot_device(handle: &HidDevice) -> HidResult<()> {
     let lol = handle.write(&buffer);
 
     if lol.is_err() {
-        let err = handle.check_error();
-        println!("err: {:?}", err);
+        println!("err: {:?}", lol.unwrap_err());
     }
 
     Ok(())
@@ -218,7 +240,7 @@ pub fn write_to_target(handle: &HidDevice, target: AP2Target, payload: &[u8]) ->
     let lol = handle.write(&buffer);
 
     if lol.is_err() {
-        let err = handle.check_error();
+        let err = lol.as_ref().unwrap_err();
         println!("err: {:?}", err);
     }
 

@@ -6,14 +6,6 @@ use structopt::StructOpt;
 
 pub mod annepro2;
 
-fn parse_hex_16(src: &str) -> std::result::Result<u16, ParseIntError> {
-    if let Some(num) = src.strip_prefix("0x") {
-        u16::from_str_radix(num, 16)
-    } else {
-        u16::from_str_radix(src, 16)
-    }
-}
-
 fn parse_hex(src: &str) -> std::result::Result<u32, ParseIntError> {
     if let Some(num) = src.strip_prefix("0x") {
         u32::from_str_radix(num, 16)
