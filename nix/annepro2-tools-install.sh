@@ -1,6 +1,8 @@
 # Create the standard environment.
 source $stdenv/setup
 
+
+export HOME=$TEMPDIR
 cp -r $src/* ./
 cargo build --release
 
