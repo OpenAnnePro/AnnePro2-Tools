@@ -23,14 +23,16 @@ and flash binary starting at 0x4000.
 
 ## nix flake supports
 
+for developer
 
-with flake, you can run `annepro2_tools` directly
+run `nix-shell` to start a rust development shell
 
+run `nix shell` to start new shell for building and testing `annepro2_tools`
+
+with nix flake, you can run `annepro2_tools` directly too.
 
 ```shell
-
 nix run github:OpenAnnePro/AnnePro2-Tools annepro2_tools -- --help
-
 nix run github:OpenAnnePro/AnnePro2-Tools/master annepro2_tools -- --help
 nix run github:OpenAnnePro/AnnePro2-Tools/0.1.0 annepro2_tools -- --help
 nix run github:OpenAnnePro/AnnePro2-Tools annepro2_tools --boot fw.bin
