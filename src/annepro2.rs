@@ -65,10 +65,16 @@ pub fn flash_firmware<R: std::io::Read>(
         println!("Please put your keyboard into IAP mode by disconnecting it and reconnecting it while holding the ESC key.");
 
         let mut i = 10;
-        while i > 0 {
-            println!("Attempt in {} seconds.", i);
-            thread::sleep(Duration::from_secs(1));
-            i -= 1;
+
+        (anne_devices, flash_device) = fetch_devices(&api);
+        if anne_devices.is_empty() || flash_device.is_none() {
+            while i > 0 {
+                println!("Attempt in {} seconds.", i);
+                thread::sleep(Duration::from_secs(1));
+                i -= 1;
+            }
+        } else {
+            break;
         }
     }
 
