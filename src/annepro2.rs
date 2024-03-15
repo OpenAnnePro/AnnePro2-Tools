@@ -118,8 +118,8 @@ fn fetch_devices(api: &HidApi) -> (Vec<&hidapi::DeviceInfo>, Option<&hidapi::Dev
             dev.usage(),
             dev.usage_page(),
             dev.product_string()
-            .map(|it| format!("({:})", it.replace("\n", " - ")))
-            .unwrap_or_default()
+                .map(|it| format!("({:})", it.replace("\n", " - ")))
+                .unwrap_or_default()
         );
     }
     let anne_devices = api
