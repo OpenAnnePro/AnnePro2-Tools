@@ -57,18 +57,24 @@ pub fn flash_firmware<R: std::io::Read>(
     file: &mut R,
     boot: bool,
 ) -> std::result::Result<(), AP2FlashError> {
-    let api = HidApi::new().map_err(|_| AP2FlashError::USBError)?;
+    let mut api = HidApi::new().map_err(|_| AP2FlashError::USBError)?;
 
-    let (anne_devices, flash_device) = fetch_devices(&api);
+    let (_, mut flash_device) = fetch_devices(&api);
 
-    if !anne_devices.is_empty() && flash_device.is_none() {
+    if flash_device.is_none() {
         println!("Please put your keyboard into IAP mode by disconnecting it and reconnecting it while holding the ESC key.");
 
         let mut i = 10;
         while i > 0 {
-            println!("Attempt in {} seconds.", i);
-            thread::sleep(Duration::from_secs(1));
-            i -= 1;
+            api = HidApi::new().map_err(|_| AP2FlashError::USBError)?;
+            (_, flash_device) = fetch_devices(&api);
+            if flash_device.is_none() {
+                println!("Attempt in {} seconds.", i);
+                thread::sleep(Duration::from_secs(1));
+                i -= 1;
+            } else {
+                break;
+            }
         }
     }
 
@@ -103,6 +109,7 @@ pub fn flash_firmware<R: std::io::Read>(
 }
 
 fn fetch_devices(api: &HidApi) -> (Vec<&hidapi::DeviceInfo>, Option<&hidapi::DeviceInfo>) {
+
     for dev in api.device_list() {
         println!(
             "HID Dev: {:04x}:{:04x} {}",
@@ -113,7 +120,6 @@ fn fetch_devices(api: &HidApi) -> (Vec<&hidapi::DeviceInfo>, Option<&hidapi::Dev
                 .unwrap_or_default()
         );
     }
-
     let anne_devices = api
         .device_list()
         .filter(|dev| dev.vendor_id() == ANNEPRO2_VID)

@@ -1,6 +1,6 @@
 [package]
 name = "annepro2_tools"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["codetector <codetector@codetector.cn>"]
 edition = "2018"
 
