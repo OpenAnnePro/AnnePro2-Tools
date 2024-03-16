@@ -1,5 +1,5 @@
 use hidapi::{HidApi, HidDevice, HidResult};
-use std::{intrinsics::transmute, thread, time::Duration};
+use std::{thread, time::Duration};
 
 const ANNEPRO2_VID: u16 = 0x04d9;
 
@@ -105,13 +105,11 @@ pub fn flash_firmware<R: std::io::Read>(
 fn fetch_devices(api: &HidApi) -> (Vec<&hidapi::DeviceInfo>, Option<&hidapi::DeviceInfo>) {
     for dev in api.device_list() {
         println!(
-            "HID Dev: {:04x}:{:04x} usage #: {:02x} usage_page #: {:04x} {}",
+            "HID Dev: {:04x}:{:04x} {}",
             dev.vendor_id(),
             dev.product_id(),
-            dev.usage(),
-            dev.usage_page(),
             dev.product_string()
-                .map(|it| format!("({:})", it.replace("\n", " - ")))
+                .map(|it| format!("({:})", it.replace('\n', " - ")))
                 .unwrap_or_default()
         );
     }
@@ -181,7 +179,7 @@ pub fn write_chunk(
     chunk: &[u8],
 ) -> HidResult<()> {
     let mut buffer: Vec<u8> = vec![L2Command::FW as u8, KeyCommand::IapWirteMemory as u8];
-    let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
+    let addr_slice: [u8; 4] = addr.to_le_bytes();
     buffer.extend_from_slice(&addr_slice);
     buffer.extend_from_slice(chunk);
     write_to_target(handle, target, &buffer).map(|_| ())
@@ -189,7 +187,7 @@ pub fn write_chunk(
 
 pub fn erase_device(handle: &HidDevice, target: AP2Target, addr: u32) -> HidResult<()> {
     let mut buffer: Vec<u8> = vec![L2Command::FW as u8, KeyCommand::IapEraseMemory as u8];
-    let addr_slice: [u8; 4] = unsafe { transmute(addr.to_le()) };
+    let addr_slice: [u8; 4] = addr.to_le_bytes();
     buffer.extend_from_slice(&addr_slice);
 
     write_to_target(handle, target, &buffer)?;
